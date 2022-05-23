@@ -1,2 +1,2 @@
 # py38
-python3.8.10
+pyenv.8.10
