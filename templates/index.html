@@ -1,0 +1,60 @@
+<html>
+
+<head>
+    <title>Restaurant King</title>
+    <meta charset="utf-8">
+</head>
+
+<body>
+    <h2>進入的頁面</h2>
+    {% if request.user.is_authenticated %}
+    <p>{{request.user}} 成功進入 U</p>
+    <table>
+        <thead>
+            <tr>
+                <th colspan="2">{{user.username}} 的資料</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            <tr>
+                <td>帳號</td>
+                <td>{{user.username}}</td>
+            </tr>
+            <tr>
+                <td>email</td>
+                <td>{{user.email}}</td>
+            </tr>
+            <tr>
+                <td>註冊時間</td>
+                <td>{{user.date_joined}}</td>
+            </tr>
+            <tr>
+                <td>身分證</td>
+                <td>{{user.id_card}}</td>
+            </tr>
+            <tr>
+                <td>生日</td>
+                <td>{{user.date_of_birth}}</td>
+            </tr>
+            <tr>
+                <td>手機號碼</td>
+                <td>{{user.mobile_number}}</td>
+            </tr>
+            <tr>
+                <td>是否有開戶</td>
+                {%if user.has_open_account %}
+                <td>有</td>
+                {% else %}
+                <td>無</td>
+                {% endif %}
+            </tr>
+        </tbody>
+    </table>
+
+    {% else %}
+    <p>您尚未登入喔~<a href="/app1/login0/">登入</a></p>
+    {% endif %}
+</body>
+
+</html>
