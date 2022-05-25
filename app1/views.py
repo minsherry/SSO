@@ -11,8 +11,6 @@ from .models import Errortimes, Member
 from .serializers import *
 
 # Week2 重構 => BaseClass
-
-
 class AuthUserInfo(GenericAPIView):
 
     queryset = Member.objects.all()
