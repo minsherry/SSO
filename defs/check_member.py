@@ -5,7 +5,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from datetime import datetime
 
-
 class CheckMember():
     def identity_verify(self,data):        
         #驗證身分

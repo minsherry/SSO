@@ -1,481 +1,454 @@
-import re
-import requests
-import json
 import random
-
-from urllib import response
+from django.contrib.auth import authenticate, login
+from django.http import HttpResponseRedirect
 from django.shortcuts import render
-# Create your views here.
 from rest_framework.generics import GenericAPIView
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import    (LoginSerailizer,
-                            MemberSerailizer,
-                            TestSerializer,
-                            IDVerifySerailizer,
-                            IDVerifySerailizer0,
-                            IDVerifyNoUNameSerailizer)
-from .models import Member
-from datetime import datetime
-from django.http import Http404, HttpRequest,HttpResponse,HttpResponseBadRequest, HttpResponseRedirect,JsonResponse
-from django.contrib import auth
-from http import HTTPStatus
-from sre_parse import State
-from defs.check_member import CheckMember
-from django.contrib.auth.hashers import check_password
-from django.contrib.auth import authenticate, login
-from django.views.decorators.csrf import csrf_protect
+from enums.Errortime_enum import errortime_enum
+from .models import Errortimes, Member
+from .serializers import *
 
-class MemberView(GenericAPIView):
-    qureyset = Member.objects.all()
-    serializer_class = LoginSerailizer
+# Week2 重構 => BaseClass
 
-    def get(self,request,*args,**krgs):
-        a = request.GET.get('a')
-        return Response(f'i see you {a}',200)
 
-    def post(self,request,*args,**krgs):
-        data = request.data
-        serializer = self.serializer_class(data=data)
-        if not serializer.is_valid():
-            return Response("格式錯誤",200)
-        data= serializer.data
-        return Response(data)
-        
+class AuthUserInfo(GenericAPIView):
 
-def test_json(request):
-    data ={"food":"apple","drink":"coffee",
-           "num":1024,"ID":"S123456789"}
-    return JsonResponse(data)
-
-def test_get_json(request):
-    url='http://10.66.200.52:9487/app1/testjson/'
-    response = requests.get(url)
-    data = response.text
-    print(str(type(data)))
-    jdata = json.loads(data)
-    drink = jdata['drink']
-    return HttpResponse(drink)
-
-#測試資料
-class IdentityVerificationView(GenericAPIView):
-    queryset = Member.objects.all()
-    serializer_class = IDVerifySerailizer0
-
-    def post(self,request,*args,**krgs):
-        #驗證資料格式
-        data = request.data
-        serializer = self.serializer_class(data=data)
-        if not serializer.is_valid():
-            return Response(f"填入的格式錯誤\
-            {data}",status=status.HTTP_200_OK)
-        print("格式正確")
-        data = serializer.data
-        
-        #傳資料給另一個server
-        url = "http://10.66.200.53:8000/Managers/password/"
-        payload = json.dumps({
-            "id_card":data["id_card"],
-            "date_of_birth":data["date_of_birth"],
-            "mobile_number":data["mobile_number"],
-            "service_code":data["service_code"]
-        })
-        
-        headers = {
-            'Content-Type': 'application/json'
-        }
-        
-        response = requests.request("POST", url, headers=headers, data=payload)
-
-        print(response.status_code)
-
-        #判斷回傳的資料
-        if response.status_code != 200:
-            return Response(f"無法連線客服端\n{response.status_code}",status=status.HTTP_200_OK)
-
-        #response=response
-        r=json.loads(response.text)
-        test = TestSerializer(data=r)
-        if not test.is_valid():
-            return Response("回傳資料錯誤{r}",status=status.HTTP_200_OK)
-
-        data0 = test.data
-
-        return Response(data0,status=status.HTTP_200_OK)
-
-#重設密碼
-class ResetPasswordView(GenericAPIView):
     queryset = Member.objects.all()
     serializer_class = IDVerifySerailizer
 
-    def post(self,request,*args,**krgs):
-        print("start respwd")
-        #驗證資料格式
+    # 資料格式驗證
+    def auth_data_format(self, request):
+
+        # 驗證資料格式
         data = request.data
-        print(data)
         serializer = self.serializer_class(data=data)
+
         if not serializer.is_valid():
-            print("格式不正確")
-            res={"code":43,"message":"輸入格式錯誤","data":serializer.errors}
-            return Response(res,status=status.HTTP_200_OK)
-        print("格式正確")
-        data = serializer.data
-        #驗證身分
-        is_correct_account = True
-        #以帳號查詢
-        if data['username'] !="":
-            #嘗試是否有帳號
-            try:
-                member = Member.objects.get(username=data['username'])
-            except Member.DoesNotExist:
-                res={"code":40,"message":"身分驗證錯誤","data":None}
-                return Response(res,status=status.HTTP_200_OK)
-            except Exception as e:
-                res={"code":42,"message":"非預期錯誤","data":e}
-                return Response(res,status=status.HTTP_200_OK)
+            res = {"code": 43, "message": "輸入格式錯誤",
+                   "data": serializer.errors, "can_pass": False}
+            return res
 
-            #如果身分正確
-            if not member.id_card == data['id_card']:
-                print(f"{member.id_card}\t{data['id_card']}")
-                is_correct_account=False
-                print("id_card is not correct")
-            if not  member.date_of_birth == datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date():
-                print(f"{member.date_of_birth}\t{data['date_of_birth']}")
-                is_correct_account=False
-                print("date_of_birth is not correct")
-            if not  member.mobile_number == data['mobile_number']:
-                print(f"{member.mobile_number}\t{data['mobile_number']}")
-                is_correct_account=False
-                print("mobile_number is not correct")
-            if not is_correct_account:
-                res={"code":40,"message":"身分驗證錯誤","data":None}
-                return Response(res,status=status.HTTP_200_OK)
-        #以身分證查詢
+        res = {"code": 40, "message": "輸入格式正確",
+               "data": serializer.validated_data, "can_pass": True}
+
+        return res
+
+    # 關鍵資料欄位是否存在 (傳入要get的欄位名稱 和 對應值)
+    def is_column_existed(self, column_name, value):
+
+        try:
+            kw = {f"{column_name}": f"{value}"}
+
+            member = Member.objects.get(**kw)
+
+            res = {"code": 40, "message": f"{column_name} Check Pass",
+                   "data": member, "can_pass": True}
+
+            return res
+
+        except Member.DoesNotExist:
+
+            res = {"code": 40, "message": "身分驗證錯誤",
+                   "data": None, "can_pass": False}
+
+            return res
+
+        except Exception as e:
+
+            res = {"code": 42, "message": "非預期錯誤",
+                   "data": e, "can_pass": False}
+
+            return res
+
+    # 會員其他欄位資料是否相符合
+    def data_column_check(self, member, data):
+
+        # 會有不需要傳id_card進來的狀況
+        if 'id_card' in data and not member.id_card == data['id_card']:
+
+            res = {"code": 43, "message": "id_card is not correct",
+                   "data": None, "can_pass": False}
+
+        elif not member.date_of_birth == data['date_of_birth']:
+
+            res = {"code": 44, "message": "date_of_birth is not correct",
+                   "data": None, "can_pass": False}
+
+        elif not member.mobile_number == data['mobile_number']:
+
+            res = {"code": 45, "message": "mobile_number is not correct",
+                   "data": None, "can_pass": False}
+
         else:
-            try:
-                member = Member.objects.get(id_card=data['id_card'])
-            except Member.DoesNotExist:
-                res={"code":40,"message":"身分驗證錯誤","data":None}
-                return Response(res,status=status.HTTP_200_OK)
-            except Exception as e:
-                res={"code":42,"message":"非預期錯誤","data":e}
-                return Response(res,status=status.HTTP_200_OK)
 
-            #如果身分正確
-            if not  member.date_of_birth == datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date():
-                print(f"{member.date_of_birth}\t{data['date_of_birth']}")
-                is_correct_account=False
-                print("date_of_birth is not correct")
-            if not member.mobile_number == data['mobile_number']:
-                print(f"{member.mobile_number}\t{data['mobile_number']}")
-                is_correct_account=False
-                print("mobile_number is not correct")
+            res = {"code": 40, "message": "All check pass",
+                   "data": member, "can_pass": True}
+
+        return res
+
+    # 驗證程序
+    def check_process(self, request):
+        # 檢查格式
+        data_format_checked = self.auth_data_format(request)
+
+        print(f"data_format_checked => {data_format_checked['can_pass']}")
+
+        if not data_format_checked['can_pass']:
+            return data_format_checked
+
+        data = data_format_checked['data']
+
+        # 如果username是空的
+        if 'username' in data and data['username'] != "":
+            data_column_checked = self.is_column_existed(
+                'username', data['username'])
+
+        else:
+            data_column_checked = self.is_column_existed(
+                'id_card', data['id_card'])
+
+        print(f"data_column_checked =>  {data_column_checked['can_pass']}")
+
+        if not data_column_checked['can_pass']:
+            return data_column_checked
+
+        else:
+            member = data_column_checked['data']
+
+        return self.data_column_check(member, data)
 
 
-        #重置密碼
-        if not is_correct_account:
-            res={"code":40,"message":"身分驗證錯誤","data":None}
-            return Response(res,status=status.HTTP_200_OK)
+# 重設密碼
+class ResetPasswordView(AuthUserInfo):
+
+    def post(self, request, *args, **krgs):
+
+        # 驗證程序
+        data_pass_check = self.check_process(request)
+
+        member = data_pass_check['data']
+
+        # 能否重製密碼
+        if not data_pass_check['can_pass']:
+
+            res = {"code": 40, "message": "身分驗證錯誤", "data": None}
+
+            return Response(res, status=status.HTTP_200_OK)
+
         else:
             print("身分驗證成功 嘗試重置密碼")
-            pwd=str()
+            pwd = str()
             for i in range(10):
-                pwd =pwd+random.choice('abcdefghijklmnopqrstuvwxyz')
+                pwd = pwd+random.choice('abcdefghijklmnopqrstuvwxyz')
             member.set_password(pwd)
             print(pwd)
             print(member.check_password(pwd))
             member.save()
-            res={"code":10,"message":"已重置密碼","data":pwd}
-            return Response(res,status=status.HTTP_200_OK)
+            res = {"code": 10, "message": "已重置密碼", "data": pwd}
+            return Response(res, status=status.HTTP_200_OK)
 
-#解鎖
-class UnlockView(GenericAPIView):
-    queryset = Member.objects.all()
-    serializer_class = IDVerifySerailizer
+# 解鎖
 
-    def post(self,request,*args,**krgs):
-        #驗證資料格式
-        data = request.data
-        print(data)
-        serializer = self.serializer_class(data=data)
-        if not serializer.is_valid():
-            print("格式不正確")
-            res={"code":43,"message":"輸入格式錯誤","data":serializer.errors}
-            return Response(res,status=status.HTTP_200_OK)
-        print("格式正確")
-        data = serializer.data
 
-        #驗證身分
-        is_correct_account = True
-        #以帳號查詢
-        if data['username'] !="":
-            #嘗試是否有帳號
-            try:
-                member = Member.objects.get(username=data['username'])
-            except Member.DoesNotExist:
-                res={"code":40,"message":"身分驗證錯誤","data":None}
-                return Response(res,status=status.HTTP_200_OK)
-            except Exception as e:
-                res={"code":42,"message":"非預期錯誤","data":e}
-                return Response(res,status=status.HTTP_200_OK)
+class UnlockView(AuthUserInfo):
 
-            #如果身分正確
-            if not member.id_card == data['id_card']:
-                print(f"{member.id_card}\t{data['id_card']}")
-                is_correct_account=False
-                print("id_card is not correct")
-            if not  member.date_of_birth == datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date():
-                print(f"{member.date_of_birth}\t{data['date_of_birth']}")
-                is_correct_account=False
-                print("date_of_birth is not correct")
-            if not  member.mobile_number == data['mobile_number']:
-                print(f"{member.mobile_number}\t{data['mobile_number']}")
-                is_correct_account=False
-                print("mobile_number is not correct")
-            if not is_correct_account:
-                res={"code":40,"message":"身分驗證錯誤","data":None}
-                return Response(res,status=status.HTTP_200_OK)
-        #以身分證查詢
-        else:
-            try:
-                member = Member.objects.get(id_card=data['id_card'])
-            except Member.DoesNotExist:
-                res={"code":40,"message":"身分驗證錯誤","data":None}
-                return Response(res,status=status.HTTP_200_OK)
-            except Exception as e:
-                res={"code":42,"message":"非預期錯誤","data":e}
-                return Response(res,status=status.HTTP_200_OK)
+    def post(self, request, *args, **krgs):
 
-            #如果身分正確
-            if not  member.date_of_birth == datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date():
-                print(f"{member.date_of_birth}\t{data['date_of_birth']}")
-                is_correct_account=False
-                print("date_of_birth is not correct")
-            if not member.mobile_number == data['mobile_number']:
-                print(f"{member.mobile_number}\t{data['mobile_number']}")
-                is_correct_account=False
-                print("mobile_number is not correct")
+        # 驗證程序
+        data_pass_check = self.check_process(request)
 
-        #被鎖住,操作解鎖
-        if not is_correct_account:
-            res={"code":40,"message":"身分驗證錯誤","data":None}
-            return Response(res,status=status.HTTP_200_OK)
+        member = data_pass_check['data']
+
+        # 能否解鎖
+        if not data_pass_check['can_pass']:
+
+            res = {"code": 40, "message": "身分驗證錯誤", "data": None}
+
+            return Response(res, status=status.HTTP_200_OK)
         else:
             print("身分驗證成功 嘗試解鎖")
             if member.is_lock:
-                member.is_lock=False
+                member.is_lock = False
                 member.save()
-                res={"code":11,"message":"已解鎖","data":None}
+                res = {"code": 11, "message": "已解鎖", "data": None}
                 print("成功解鎖")
-                return Response(res,status=status.HTTP_200_OK)
+                return Response(res, status=status.HTTP_200_OK)
             else:
-                res={"code":41,"message":"非鎖定狀態","data":None}
+                res = {"code": 41, "message": "非鎖定狀態", "data": None}
                 print("不須解鎖")
-                return Response(res,status=status.HTTP_200_OK)
+                return Response(res, status=status.HTTP_200_OK)
 
-#忘記帳號
-class ForgetUnameView(GenericAPIView):
-    queryset = Member.objects.all()
-    serializer_class = IDVerifyNoUNameSerailizer
+# 忘記帳號
 
-    def post(self,request,*args,**krgs):
-        #驗證資料格式
-        data = request.data
-        print(data)
-        serializer = self.serializer_class(data=data)
-        if not serializer.is_valid():
-            print("格式不正確")
-            res={"code":43,"message":"輸入格式錯誤","data":serializer.errors}
-            return Response(res,status=status.HTTP_200_OK)
-        print("格式正確")
-        data = serializer.data
 
-        #驗證身分
-        is_correct_account = True
-        #以身分證查詢        
-        try:
-            member = Member.objects.get(id_card=data['id_card'])
-        except Member.DoesNotExist:
-            res={"code":40,"message":"身分驗證錯誤0","data":None}
-            return Response(res,status=status.HTTP_200_OK)
-        except:
-            res={"code":42,"message":"非預期錯誤","data":None}
-            return Response(res,status=status.HTTP_200_OK)
+class ForgetUserNameView(AuthUserInfo):
 
-        #如果身分正確
-        if not  member.date_of_birth == datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date():
-            print(f"{member.date_of_birth}\t{data['date_of_birth']}")
-            is_correct_account=False
-            print("date_of_birth is not correct")
-        if not member.mobile_number == data['mobile_number']:
-            print(f"{member.mobile_number}\t{data['mobile_number']}")
-            is_correct_account=False
-            print("mobile_number is not correct")
-        
-        #回傳帳號
-        if not is_correct_account:
-            res={"code":40,"message":"身分驗證錯誤1","data":None}
-            return Response(res,status=status.HTTP_200_OK)
+    def post(self, request, *args, **krgs):
+        # 驗證程序
+        data_pass_check = self.check_process(request)
+
+        member = data_pass_check['data']
+
+        # 是否能回傳帳號
+        if not data_pass_check['can_pass']:
+
+            res = {"code": 40, "message": "身分驗證錯誤", "data": None}
+
+            return Response(res, status=status.HTTP_200_OK)
         else:
             print("身分驗證成功 開始回傳帳號")
-            res={"code":12,"message":"回傳帳號","data":member.username}
-            return Response(res,status=status.HTTP_200_OK)
+            res = {"code": 12, "message": "回傳帳號", "data": member.username}
+            return Response(res, status=status.HTTP_200_OK)
 
-#查看開戶資訊
-class CheckStatusView(GenericAPIView):
-    queryset = Member.objects.all()
-    serializer_class = IDVerifySerailizer
 
-    def post(self,request,*args,**krgs):
-        #驗證資料格式
-        data = request.data
-        print(data)
-        serializer = self.serializer_class(data=data)
-        if not serializer.is_valid():
-            print("格式不正確")
-            res={"code":43,"message":"輸入格式錯誤","data":serializer.errors}
-            return Response(res,status=status.HTTP_200_OK)
-        print("格式正確")
-        data = serializer.data
+# 查看開戶資訊
+class CheckStatusView(AuthUserInfo):
 
-        #驗證身分
-        is_correct_account = True
-        #以帳號查詢
-        if data['username']!="":
-            #嘗試是否有帳號
-            try:
-                member = Member.objects.get(username=data['username'])
-            except Member.DoesNotExist:
-                res={"code":40,"message":"身分驗證錯誤0","data":None}
-                return Response(res,status=status.HTTP_200_OK)
-            except Exception as e:
-                res={"code":42,"message":"非預期錯誤","data":e}
-                return Response(res,status=status.HTTP_200_OK)
+    def post(self, request, *args, **krgs):
+        # 通過驗證程序
+        data_pass_check = self.check_process(request)
 
-            #如果身分正確
-            if not member.id_card == data['id_card']:
-                print(f"{member.id_card}\t{data['id_card']}")
-                is_correct_account=False
-                print("id_card is not correct")
-            if not  member.date_of_birth == datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date():
-                print(f"{member.date_of_birth}\t{data['date_of_birth']}")
-                is_correct_account=False
-                print("date_of_birth is not correct")
-            if not  member.mobile_number == data['mobile_number']:
-                print(f"{member.mobile_number}\t{data['mobile_number']}")
-                is_correct_account=False
-                print("mobile_number is not correct")
-            if not is_correct_account:
-                res={"code":40,"message":"身分驗證錯誤1","data":None}
-                return Response(res,status=status.HTTP_200_OK)
-        #以身分證查詢
+        member = data_pass_check['data']
+
+        # 是否回傳開戶資訊
+        if not data_pass_check['can_pass']:
+
+            res = {"code": 40, "message": "身分驗證錯誤", "data": None}
+
+            return Response(res, status=status.HTTP_200_OK)
         else:
-            try:
-                member = Member.objects.get(id_card=data['id_card'])
-            except Member.DoesNotExist:
-                res={"code":40,"message":"身分驗證錯誤","data":None}
-                return Response(res,status=status.HTTP_200_OK)
-            except Exception as e:
-                res={"code":42,"message":"非預期錯誤","data":e}
-                return Response(res,status=status.HTTP_200_OK)
+            print("身分驗證成功 開始回傳開戶資訊")
+            res = {"code": 20, "message": "回傳開戶資料",
+                   "data": member.has_open_account}
+            return Response(res, status=status.HTTP_200_OK)
 
-            #如果身分正確
-            if not  member.date_of_birth == datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date():
-                print(f"{member.date_of_birth}\t{data['date_of_birth']}")
-                is_correct_account=False
-                print("date_of_birth is not correct")
-            if not member.mobile_number == data['mobile_number']:
-                print(f"{member.mobile_number}\t{data['mobile_number']}")
-                is_correct_account=False
-                print("mobile_number is not correct")
-        
-        #顯示是否開戶
-        if not is_correct_account:
-            res={"code":40,"message":"身分驗證錯誤","data":None}
-            return Response(res,status=status.HTTP_200_OK)
-        else:    
-            print("身分驗證成功 開始回傳開戶資訊")  
-            res={"code":20,"message":"回傳開戶資料","data":member.has_open_account}
-            return Response(res,status=status.HTTP_200_OK)
+# 登入頁面
 
-#登入頁面
+
 def LoginPage(request):
-    return render(request,'login.html',{})
+    return render(request, 'login.html', {})
 
-#登入 TODO 需要移到另一個app
-class LoginView(GenericAPIView):
+# 登入
+
+
+class LoginView(AuthUserInfo):
+
     queryset = Member.objects.all()
     serializer_class = LoginSerailizer
 
-    # @csrf_protect
-    def post(self,request,*args,**krgs):
+    # 登入程序進入點
+    def post(self, request, *args, **krgs):
         print("start login post")
+
         data = request.data
         serializer = self.serializer_class(data=data)
 
-        if not serializer.is_valid():            
-            res={"code":100,"message":"帳密驗證錯誤","data":serializer.errors}
-            return Response(res,status=status.HTTP_200_OK)        
+        if not serializer.is_valid():
+            res = {"code": 100, "message": "帳密驗證錯誤", "data": serializer.errors}
+            return Response(res, status=status.HTTP_200_OK)
+
         data = serializer.data
-        print(f"serializer data => {data}")
 
-        #以下可以做帳號的密碼錯誤
-
-        try:
-            user = Member.objects.get(username = data["username"])
-        except Member.DoesNotExist:
-            res={"code":101,"message":"沒有該帳號","data":""}
-            print("沒有該帳號")
-            # return Response(res,status=status.HTTP_200_OK)
-        except Exception as e:
-            res={"code":102,"message":"其他錯誤","data":e}
-            print(f"其他錯誤:{e}")
-            # return Response(res,status=status.HTTP_200_OK)
-
-        print("start try login")
-
+        # 驗證
         user0 = authenticate(request,
-                            username=data['username'], 
-                            password=data['password'])
+                             username=data['username'],
+                             password=data['password'])
 
-        #帳號密碼正確
-        if user0 is not None:   
-            if user.wrong_pwd_times >3:
-                res={"code":110,"message":"密碼錯誤超過3次，已封鎖","data":""}
-                return Response(res,status=status.HTTP_200_OK)
-            login(request,user0)
+        # 帳號密碼正確
+        if user0 is not None:
+
+            # 取DB資料拿當前錯誤次數
+            user = Member.objects.get(username=data['username'])
+
+            res = errortime_hint(user.wrong_pwd_times)
+
+            # 如果當前錯誤次數已不能登入
+            if not res['can_login']:
+                return Response(res, status=status.HTTP_200_OK)
+
+            login(request, user0)
             print("登入成功")
-            user.wrong_pwd_times=0
+
+            user.wrong_pwd_times = 0
             user.save()
-            res={"code":101,"message":"登入成功","data":""}
-            #跳轉網頁
+
+            res = {"code": 101, "message": "登入成功", "data": ""}
+
+            # 跳轉網頁
             return HttpResponseRedirect('/app1/index0/')
-        #帳密沒通過驗證
+
+        # 帳密沒通過驗證
         else:
-            #有該帳號
-            if user is not None:
-                if user.wrong_pwd_times >3:
-                    user.wrong_pwd_times=user.wrong_pwd_times+1
-                    user.save()
-                    res={"code":110,"message":"密碼錯誤超過3次，已封鎖","data":""}
-                    return Response(res,status=status.HTTP_200_OK)
 
-                # if not check_password(data["password"], user.password):
-                user.wrong_pwd_times=user.wrong_pwd_times+1
-                user.save()
-                print(f"{user.username}密碼錯誤+1")
+            # 確認是否有該帳號
+            checked_data = self.is_column_existed('username', data['username'])
 
-            print("登入失敗")
-            res={"code":102,"message":"登入失敗","data":""}
-            return Response(res,status=status.HTTP_200_OK)
-    
+            if checked_data['can_pass']:
 
-#跳轉頁面測試
+                user = checked_data['data']
+            else:
+
+                return Response(checked_data, status=status.HTTP_200_OK)
+
+            # 有該帳號後 => 提取錯誤次數
+            wrong_pwd_times = user.wrong_pwd_times
+
+            hint = errortime_hint(wrong_pwd_times)
+
+            error_setting(user, wrong_pwd_times)
+
+            return Response(hint, status=status.HTTP_200_OK)
+
+
+# 跳轉頁面測試
 def index0(request):
     try:
-        user = Member.objects.get(username = request.user.username)
-        return render(request,'index.html',{"user":user,})
+        user = Member.objects.get(username=request.user.username)
+        return render(request, 'index.html', {"user": user, })
     except Member.DoesNotExist:
-        return render(request,'index.html',{})    
+        return render(request, 'index.html', {})
     except Exception as e:
-        return render(request,'index.html',{})    
+        return render(request, 'index.html', {})
+
+
+# Week2 新增功能 =>錯誤次數設定
+class ErrorSetting(APIView):
+
+    def post(self, request):
+
+        data = request.data
+
+        serializers = Errortime_setting_serializer(data=data)
+
+        if not serializers.is_valid(raise_exception=True):
+
+            return Response("錯誤格式!", status=status.HTTP_200_OK)
+
+        try:
+
+            db_data = Errortimes.objects.get(
+                name=serializers.validated_data['name'])
+
+            print(f"目前的錯誤和次數{db_data.name} : {db_data.value}")
+
+            db_data.value = serializers.validated_data['value']
+
+            print(f"更新後錯誤和次數{db_data.name} : {db_data.value}")
+
+            db_data.save()
+
+            return Response(f"更改成功! {db_data.name} 的次數更改成 {db_data.value}", status=status.HTTP_200_OK)
+
+        except:
+
+            # 如果輸入的變數名 是有支援的錯誤名稱 => 儲存改變
+            if serializers.validated_data['name'] in errortime_enum.__members__:
+
+                serializers.save()
+
+                return Response(f"新增成功!  {serializers.validated_data['name']} : {serializers.validated_data['value']}")
+
+            else:
+
+                return Response("目前不支援該錯誤對應的服務", status.HTTP_200_OK)
+
+# 獲取目前該錯誤設定的次數
+
+
+def errortime_getter(name):
+
+    try:
+        model = Errortimes.objects.get(name=name)
+
+        return model.value
+    except:
+        # 如果Db沒資料 傳回當前預設值
+        if name in errortime_enum.__members__:
+
+            return errortime_enum[name].value
+
+        else:
+
+            return None
+
+# 錯誤次數提示
+
+
+def errortime_hint(user_error_time):
+
+    if user_error_time > errortime_getter('Cannot_use'):
+
+        res = {"code": 110, "message": f"密碼錯誤超過上限，已無法使用",
+               "data": "", "can_login": False}
+
+    elif user_error_time > errortime_getter('Auto_ban'):
+
+        res = {"code": 111, "message": f"密碼錯誤超過一定次數，已禁止",
+               "data": "", "can_login": False}
+
+    elif user_error_time > errortime_getter('Auto_lock'):
+
+        res = {"code": 112, "message": f"密碼錯誤超過一定次數，已封鎖",
+               "data": "", "can_login": False}
+
+    else:
+
+        res = {"code": 112, "message": "密碼錯誤 請重新登入",
+               "data": "", "can_login": True}
+
+    return res
+
+# 對應錯誤次數的設定
+
+
+def error_setting(user, error_times):
+    if error_times >= errortime_getter('Cannot_use'):
+        user.cannot_use = True
+    elif error_times >= errortime_getter('Auto_ban'):
+        user.is_ban = True
+    elif error_times >= errortime_getter('Auto_lock'):
+        user.is_lock = True
+
+    user.wrong_pwd_times = user.wrong_pwd_times + 1
+
+    user.save()
+
+# 會員註冊
+
+
+class MemberSignUp(GenericAPIView):
+
+    queryset = Member.objects.all()
+    serializer_class = MemberSerailizer
+
+    # 輸入會員註冊資料
+    def post(self, request):
+
+        data = request.data
+        serializers = self.serializer_class(data=data)
+
+        if not serializers.is_valid(raise_exception=True):
+            return Response("資料格式錯誤", status=status.HTTP_200_OK)
+
+        serializers.save()
+
+        self.encryption_password(serializers.validated_data['username'])
+
+        return Response("會員註冊成功!", status=status.HTTP_200_OK)
+
+    # 密碼取出加密
+    def encryption_password(self, username):
+
+        member = Member.objects.get(username=username)
+
+        member.set_password(member.password)
+
+        member.save()
+
+# # 會員登入查詢
+# @method_decorator(login_required)
+# class Member_data(GenericAPIView):
+
+#     # queryset = Member_data.objects.get()

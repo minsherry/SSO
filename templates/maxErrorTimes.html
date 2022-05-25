@@ -1,0 +1,14 @@
+<html>
+    <head>
+        <title>修改帳號錯誤次數上限</title>
+        <meta charset="utf-8">
+    </head>
+
+    <body>
+        <form action="{% url '' %}" method="post">
+            <input type="text" name="幾次錯誤要上鎖?" id="lockTimes"> <br />            
+            <input type="text" name="幾次錯誤要永Ban" id="banTimes"> <br />                        
+            <input type="submit" value="修改" />>
+        </form>
+    </body>
+</html>
