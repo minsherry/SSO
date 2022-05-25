@@ -17,16 +17,6 @@ class MemberSerailizer(serializers.ModelSerializer):
                   'mobile_number', 'first_name', 'last_name', 'email')
 
 
-class IDVerifySerailizer0(serializers.ModelSerializer):
-    username = serializers.CharField(allow_blank=True)
-    service_code = serializers.IntegerField()
-
-    class Meta:
-        model = Member
-        fields = ('username', 'id_card', 'date_of_birth',
-                  'mobile_number', 'service_code')
-
-
 class IDVerifySerailizer(serializers.ModelSerializer):
     username = serializers.CharField(allow_blank=True)
     id_card = serializers.CharField(max_length=10)
@@ -35,22 +25,7 @@ class IDVerifySerailizer(serializers.ModelSerializer):
         model = Member
         fields = ('username', 'id_card', 'date_of_birth', 'mobile_number')
 
-
-class IDVerifyNoUNameSerailizer(serializers.ModelSerializer):
-    id_card = serializers.CharField(max_length=10)
-
-    class Meta:
-        model = Member
-        fields = ('id_card', 'date_of_birth', 'mobile_number')
-
-
-class TestSerializer(serializers.Serializer):
-    code = serializers.IntegerField()
-    message = serializers.CharField()
-
 # 錯誤次數設定
-
-
 class Errortime_setting_serializer(serializers.Serializer):
 
     name = serializers.CharField()
