@@ -24,7 +24,7 @@ class MemberSerailizer(serializers.ModelSerializer):
         '''
 
         user = super(MemberSerailizer, self).create(validated_data)
-        user.set_password(validated_data['password'])
+        user.set_password(validated_data.get('password'))
         user.save()
         return user
 

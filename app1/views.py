@@ -13,13 +13,10 @@ from enums.ErrorStrEnum import *
 from .models import Errortimes, Member
 from .serializers import *
 
-class AuthUserInfo(GenericAPIView):
+class AuthUserInfo(APIView):
     '''
     用戶資料驗證程序
     '''
-
-    queryset = Member.objects.all()
-    serializer_class = IDVerifySerailizer
 
     def serializer_check(self, request):
         '''
@@ -27,7 +24,7 @@ class AuthUserInfo(GenericAPIView):
         '''
 
         data = request.data
-        serializer = self.serializer_class(data = data)
+        serializer = IDVerifySerailizer(data = data)
 
         if serializer.is_valid():
             result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_SUCCESS.code, serializer.validated_data)
@@ -115,7 +112,6 @@ class ResetPasswordView(AuthUserInfo):
         data_pass_check = self.check_process(request)  # 驗證程序
         
         if data_pass_check.get('code') == CodeAndMessageEnum.USER_AUTH_FAIL.code:  # 能否重製密碼
-
             return Response(data_pass_check)
 
         else:
@@ -149,14 +145,11 @@ class UnlockView(AuthUserInfo):
 
         # 能否解鎖
         if data_pass_check.get('code') == CodeAndMessageEnum.USER_AUTH_FAIL.value.get('code'):
-
             result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_FAIL.code, None)
 
             return Response(result)
         else:
-
             if member.is_lock:
-
                 member.is_lock = False
                 member.save()
 
@@ -229,8 +222,7 @@ class LoginView(AuthUserInfo):
         
         auth_user = authenticate(request, username = data.get('username'), password = data.get('password'))  # 驗證
         
-        if auth_user is not None:  # 帳號密碼正確
-            
+        if auth_user is not None:  # 帳號密碼正確            
             user = Member.objects.get(username = data.get('username'))  # 取DB資料拿當前錯誤次數
 
             result = errortime_hint(user.wrong_pwd_times)
@@ -248,7 +240,6 @@ class LoginView(AuthUserInfo):
             return HttpResponseRedirect('/app1/login1/')  # 跳轉網頁
 
         else:  # 帳密沒通過驗證
-
             checked_data = self.get_member_data_by_key_column(**{'username': data['username']})  # 確認是否有該帳號
 
             if checked_data.get('code') == CodeAndMessageEnum.USER_AUTH_SUCCESS.code:
@@ -305,12 +296,10 @@ class ErrorSetting(APIView):
         serializers = ErrortimeSettingSerializer(data = data)
 
         if not serializers.is_valid():
-
             return Response(CodeAndMessageEnum.DATA_FORMAT_ERROR.name)
 
         try:
-
-            db_data = Errortimes.objects.get(name=serializers.validated_data.get('name'))
+            db_data = Errortimes.objects.get(name = serializers.validated_data.get('name'))
 
             db_data.value = serializers.validated_data.get('value')
 
@@ -319,14 +308,12 @@ class ErrorSetting(APIView):
             return Response(f"更改成功! {db_data.name} 的次數更改成 {db_data.value}")
 
         except:
-
             if serializers.validated_data.get('name') in ErrorNameEnum.__members__:
                 serializers.save()
 
                 return Response(f"新增成功!  {serializers.validated_data['name']} : {serializers.validated_data['value']}")
 
             else:
-
                 return Response(CodeAndMessageEnum.SERVICE_NOT_EXISTED.message)
 
 
@@ -340,7 +327,6 @@ def get_errortime_set_now(error_name):
 
         return model.value
     except:
-
         if error_name in ErrorNameEnum.__members__:
             return ErrorNameEnum.DEFAULT.value
         else:
@@ -359,8 +345,7 @@ def errortime_hint(user_error_time):
     elif user_error_time >= get_errortime_set_now(ErrorNameEnum.AUTO_LOCK.name):
         result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.LOGIN_LOCK.code, None)
     else:
-        result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.LOGIN_FAIL.code, None)
-    
+        result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.LOGIN_FAIL.code, None)   
 
     return result
 
