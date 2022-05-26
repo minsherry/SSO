@@ -1,7 +1,8 @@
 import random
 
 from io import StringIO
-from django.contrib.auth import authenticate, login
+from telnetlib import LOGOUT
+from django.contrib.auth import authenticate, login, logout
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from rest_framework.generics import GenericAPIView
@@ -11,7 +12,6 @@ from enums.AuthStatusEnum import *
 from enums.ErrorStrEnum import *
 from .models import Errortimes, Member
 from .serializers import *
-
 
 class AuthUserInfo(GenericAPIView):
     '''
@@ -196,7 +196,7 @@ class CheckStatusView(AuthUserInfo):
     def post(self, request):        
         data_pass_check = self.check_process(request)  # 通過驗證程序
 
-        member = data_pass_check['data']
+        member = data_pass_check.get('data')
         
         if data_pass_check.get('code') == CodeAndMessageEnum.USER_AUTH_FAIL.code:  # 是否回傳開戶資訊
             result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_FAIL.code, None)
@@ -237,7 +237,7 @@ class LoginView(AuthUserInfo):
             
             if result.get('data') == False:  # 如果當前錯誤次數已不能登入
                 return Response(result)
-
+            
             login(request, auth_user)            
 
             user.wrong_pwd_times = 0
@@ -245,7 +245,7 @@ class LoginView(AuthUserInfo):
 
             result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.LOGIN_SUCCESS, None)
             
-            return HttpResponseRedirect('/app1/index0/')  # 跳轉網頁
+            return HttpResponseRedirect('/app1/login1/')  # 跳轉網頁
 
         else:  # 帳密沒通過驗證
 
@@ -271,9 +271,9 @@ def page_after_login(request):
     '''
 
     try:
-        user = Member.objects.get(username=request.user.username)
+        user = Member.objects.get(username = request.user.username)
 
-        return render(request, 'index.html', {"user": user, })
+        return render(request, 'index.html', {"user": user})
     except Exception:
         return render(request, 'index.html')
 
@@ -285,6 +285,13 @@ def login_page(request):
 
     return render(request, 'login.html')
 
+def log_out(request):
+    '''
+    登出
+    '''
+
+    logout(request)
+    return HttpResponseRedirect('/app1/login/')
 
 class ErrorSetting(APIView):
     '''
@@ -357,7 +364,6 @@ def errortime_hint(user_error_time):
 
     return result
 
-
 def error_setting(user):
     '''
     依照用戶錯誤次數 設定帳戶上鎖或禁止    
@@ -373,7 +379,6 @@ def error_setting(user):
     user.wrong_pwd_times = user.wrong_pwd_times + 1  # 登入錯誤次數 + 1
 
     user.save()
-
 
 class MemberSignUp(GenericAPIView):
     '''

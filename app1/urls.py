@@ -9,6 +9,7 @@ urlpatterns = [
     path('login/', login_page, name ='login_page'),
     path('login0/', LoginView.as_view(), name ="loginEx"),
     path('login1/', page_after_login),  
+    path('logout/', log_out, name='logout'),
     path('error_setting/', ErrorSetting.as_view()),  #當前 鎖定/禁止 次數設定
     path('member_sign_up', MemberSignUp.as_view()),  #會員註冊
 ]

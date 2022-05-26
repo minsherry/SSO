@@ -1,8 +1,11 @@
 from rest_framework import serializers
 from app1.models import Errortimes, Member
 
-class LoginSerailizer(serializers.Serializer):
-    
+class LoginSerailizer(serializers.Serializer):    
+    '''
+    會員登入
+    '''
+
     username = serializers.CharField()
     password = serializers.CharField()       
 
@@ -26,14 +29,15 @@ class MemberSerailizer(serializers.ModelSerializer):
         return user
 
 
-class IDVerifySerailizer(serializers.ModelSerializer):
+class IDVerifySerailizer(serializers.Serializer):
+    '''
+    身分驗證
+    '''
+
     username = serializers.CharField(allow_blank=True)
     id_card = serializers.CharField(max_length=10)
-
-    class Meta:
-        model = Member
-        fields = ('username', 'id_card', 'date_of_birth', 'mobile_number')
-
+    date_of_birth = serializers.DateField()
+    mobile_number = serializers.CharField()
 
 class ErrortimeSettingSerializer(serializers.Serializer):
     '''

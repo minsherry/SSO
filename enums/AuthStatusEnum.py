@@ -1,9 +1,11 @@
-from enum import Enum
+from enum import Enum,unique    
 
+@unique
 class CodeAndMessageEnum(bytes, Enum):
     '''
     用來記錄狀態代碼 和 回傳訊息
     '''
+
     DATA_FORMAT_ERROR = (1, "資料格式錯誤")
 
     USER_AUTH_FAIL = (10, "用戶資料驗證錯誤")
@@ -26,15 +28,17 @@ class CodeAndMessageEnum(bytes, Enum):
     RETURN_USER_ACCOUNT_NAME = (61, "回傳用戶帳號")
 
     SERVICE_NOT_EXISTED = (70, "目前沒有提供該服務")
-    
-    def __new__(cls, code, message):
-        obj = bytes.__new__(cls, [code])
-        obj._value_ = code
-        obj.code = code
+
+    CUSTOMIZE = (80, "自定義訊息")
+        
+    def __new__(cls, value, message):
+        obj = bytes.__new__(cls, [value])
+        obj._value_ = value
+        obj.code = value
         obj.message = message
         
         return obj
-
+    
     def get_dict(code, data, *new_msg):        
         if new_msg:
             message = new_msg[0]
