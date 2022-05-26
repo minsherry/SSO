@@ -25,16 +25,18 @@ class Member(AbstractUser):
     def __str__(self):
         return self.username
 
-# 紀錄錯誤次數
-
 
 class Errortimes(models.Model):
+    '''
+    紀錄錯誤次數
+    '''
     name = models.CharField(max_length=100, primary_key=True)
     value = models.IntegerField()
 
-
-# 會員開戶資料
 class MemberData(models.Model):
+    '''
+    會員開戶資料
+    '''
 
     # 開戶資料 和 Member關聯
     account_data = models.TextField()

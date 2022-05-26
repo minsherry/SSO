@@ -15,84 +15,88 @@ from .models import Errortimes, Member
 from .serializers import *
 
 class AuthUserInfo(GenericAPIView):
+    '''
+    用戶資料驗證程序
+    '''
 
     queryset = Member.objects.all()
     serializer_class = IDVerifySerailizer
     
-    def format_check(self, request):
-        
+    def serializer_check(self, request):        
+
         data = request.data
         serializer = self.serializer_class(data=data)
 
-        if not serializer.is_valid():            
-            result = user_data_auth_result(False, None)        
+        if serializer.is_valid():            
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_SUCCESS.code, serializer.validated_data)        
         else :                   
-            result = user_data_auth_result(True, serializer.validated_data)            
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_FAIL.code, None)  
 
         return result
     
-    def check_by_specified_column(self, **kwargs):
+    def specified_column_check(self, **column_name_and_value):
 
         try:
+            member = Member.objects.get(**column_name_and_value)            
 
-            member = Member.objects.get(**kwargs)            
-
-            result = user_data_auth_result(True, member)
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_SUCCESS.code, member)                    
 
             return result
 
         except Exception:
-
-            result = user_data_auth_result(False, None)
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_FAIL.code, None)                    
 
             return result
     
-    def third_check_other_column(self, db_data, request_data):
-        
+    def other_column_check(self, memeber_data_in_db, request_data):    
+
         tmp_str = StringIO()
 
-        if request_data.get('id_card') != db_data.id_card:            
-            tmp_str.write("身分證/")
+        if request_data.get('id_card') != memeber_data_in_db.id_card:            
+            tmp_str.write("身分證 / ")
 
-        if request_data.get('date_of_birth') != db_data.date_of_birth:            
-            tmp_str.write("出生年月日/")
+        if request_data.get('date_of_birth') != memeber_data_in_db.date_of_birth:            
+            tmp_str.write("出生年月日 / ")
 
-        if request_data.get('mobile_number') != db_data.mobile_number:
-            tmp_str.write("連絡電話/")                 
+        if request_data.get('mobile_number') != memeber_data_in_db.mobile_number:
+            tmp_str.write("連絡電話 / ")                 
 
         if tmp_str.getvalue():
-            result = user_data_auth_result(False, f"資料不符合的欄位: {tmp_str.getvalue()}")
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_FAIL.code, None, f"資料不符合的欄位: {tmp_str.getvalue()[:-1]}")        
         else:
-            result = user_data_auth_result(True, db_data)
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_SUCCESS.code, memeber_data_in_db)
+
+        print(result)
 
         return result
 
-    def check_process(self, request):      
-
-        print(request.data)
+    def check_process(self, request):  
         
-        data_first_checked = self.format_check(request)
+        data_first_checked = self.serializer_check(request)
 
-        if data_first_checked.get('code') == CodeMessageEnum.USER_AUTH_FAIL.value.get('code'):
+        if data_first_checked.get('code') == CodeAndMessageEnum.USER_AUTH_FAIL.code:
             return data_first_checked
 
         data = data_first_checked.get('data')         
 
         if data.get('username') != "":            
-            data_second_checked = self.check_by_specified_column(**{'username': data['username']})
+            data_second_checked = self.specified_column_check(**{'username': data['username']})
         else:            
-            data_second_checked = self.check_by_specified_column(**{'id_card': data['id_card']})
+            data_second_checked = self.specified_column_check(**{'id_card': data['id_card']})
 
-        if data_second_checked.get('code') == CodeMessageEnum.USER_AUTH_FAIL.value.get('code'):
+        if data_second_checked.get('code') == CodeAndMessageEnum.USER_AUTH_FAIL.code:
             return data_second_checked
         else:
             member_data = data_second_checked.get('data')
 
-        return self.third_check_other_column(member_data, data)
+        result = self.other_column_check(member_data, data)
 
+        return result
 
-# 重設密碼
 class ResetPasswordView(AuthUserInfo):
+    '''
+    用戶重置密碼
+    '''
 
     def post(self, request):
 
@@ -100,7 +104,7 @@ class ResetPasswordView(AuthUserInfo):
         data_pass_check = self.check_process(request)
 
         # 能否重製密碼
-        if data_pass_check.get('code') == CodeMessageEnum.USER_AUTH_FAIL.value.get('code'):
+        if data_pass_check.get('code') == CodeAndMessageEnum.USER_AUTH_FAIL.code:
 
             return Response(data_pass_check)
 
@@ -114,14 +118,16 @@ class ResetPasswordView(AuthUserInfo):
             member.set_password(pwd)
             member.save()
 
-            result = user_data_auth_result(True, pwd)
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_SUCCESS.code, pwd, "重製密碼成功!")
+
+            print(result)
 
             return Response(result)
 
-# 解鎖
-
-
 class UnlockView(AuthUserInfo):
+    '''
+    用戶解鎖
+    '''
 
     def post(self, request):
 
@@ -133,7 +139,7 @@ class UnlockView(AuthUserInfo):
         # 能否解鎖
         if data_pass_check.get('code') == CodeMessageEnum.USER_AUTH_FAIL.value.get('code'):
 
-            result = user_data_auth_result(False, None)
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_FAIL.code, None)
 
             return Response(result)
         else:            
@@ -143,93 +149,91 @@ class UnlockView(AuthUserInfo):
                 member.is_lock = False
                 member.save()
 
-                result = {"code": 11, "message": "已解鎖", "data": None}
-                print("成功解鎖")
-                return Response(res, status=status.HTTP_200_OK)
+                result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_UNLOCK_SUCCESS.code, None)
+                
+                return Response(result)
             else:
-                res = {"code": 41, "message": "非鎖定狀態", "data": None}
-                print("不須解鎖")
-                return Response(res, status=status.HTTP_200_OK)
-
-# 忘記帳號
+                result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_IS_NON_UNLOCK, None)
+                
+                return Response(result)
 
 
 class ForgetUserNameView(AuthUserInfo):
+    '''
+    用戶忘記密碼
+    '''
 
-    def post(self, request, *args, **krgs):
-        # 驗證程序
+    def post(self, request):
+        
         data_pass_check = self.check_process(request)
 
         member = data_pass_check['data']
 
         # 是否能回傳帳號
-        if data_pass_check.get('code') == 10:
+        if data_pass_check.get('code') == CodeAndMessageEnum.USER_AUTH_FAIL:
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_FAIL.code, None)            
+        else:            
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.RETURN_USER_ACCOUNT_NAME, member.username)            
 
-            res = {"code": 40, "message": "身分驗證錯誤", "data": None}
+        return Response(result)
 
-            return Response(res, status=status.HTTP_200_OK)
-        else:
-            print("身分驗證成功 開始回傳帳號")
-            res = {"code": 12, "message": "回傳帳號", "data": member.username}
-            return Response(res, status=status.HTTP_200_OK)
-
-
-# 查看開戶資訊
 class CheckStatusView(AuthUserInfo):
+    '''
+    回傳用戶開戶資訊
+    '''
 
-    def post(self, request, *args, **krgs):
+    def post(self, request):
         # 通過驗證程序
         data_pass_check = self.check_process(request)
 
         member = data_pass_check['data']
 
         # 是否回傳開戶資訊
-        if data_pass_check.get('code') == 10:
+        if data_pass_check.get('code') == CodeAndMessageEnum.USER_AUTH_FAIL.code:
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.USER_AUTH_FAIL.code, None)            
 
-            res = {"code": 40, "message": "身分驗證錯誤", "data": None}
+            return Response(result)
+        else:       
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.RETURN_USER_ACCOUNT_DATA.code, member.has_open_account)                 
 
-            return Response(res, status=status.HTTP_200_OK)
-        else:
-            print("身分驗證成功 開始回傳開戶資訊")
-            res = {"code": 20, "message": "回傳開戶資料",
-                   "data": member.has_open_account}
-
-            return Response(res, status=status.HTTP_200_OK)
+            return Response(result)
 
 
 class LoginView(AuthUserInfo):
+    '''
+    用戶登入
+    '''
 
     queryset = Member.objects.all()
     serializer_class = LoginSerailizer
-
-    # 登入程序進入點
+    
     def post(self, request):        
 
         data = request.data
         serializer = self.serializer_class(data=data)
 
         if not serializer.is_valid():
-            result = {"code": 100, "message": "帳密驗證錯誤", "data": serializer.errors}
-            return Response(result, status=status.HTTP_200_OK)
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.LOGIN_DATA_FORMAT_ERROR, None)
+            return Response(result)
 
         data = serializer.data
 
         # 驗證
         user0 = authenticate(request,
-                             username=data['username'],
-                             password=data['password'])
+                             username=data.get('username'),
+                             password=data.get('password'))
 
         # 帳號密碼正確
         if user0 is not None:
 
             # 取DB資料拿當前錯誤次數
-            user = Member.objects.get(username=data['username'])
+            user = Member.objects.get(username=data.get('username'))
 
             result = errortime_hint(user.wrong_pwd_times)
 
             # 如果當前錯誤次數已不能登入
             if not result['can_login']:
-                return Response(result, status=status.HTTP_200_OK)
+                return Response(result)
 
             login(request, user0)
             print("登入成功")
@@ -237,7 +241,7 @@ class LoginView(AuthUserInfo):
             user.wrong_pwd_times = 0
             user.save()
 
-            result = {"code": 101, "message": "登入成功", "data": ""}
+            result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.LOGIN_SUCCESS, None)
 
             # 跳轉網頁
             return HttpResponseRedirect('/app1/index0/')
@@ -246,7 +250,7 @@ class LoginView(AuthUserInfo):
         else:
 
             # 確認是否有該帳號
-            checked_data = self.check_by_specified_column(
+            checked_data = self.specified_column_check(
                 'username', data['username'])
 
             if checked_data['can_pass']:
@@ -254,7 +258,7 @@ class LoginView(AuthUserInfo):
                 user = checked_data['data']
             else:
 
-                return Response(checked_data, status=status.HTTP_200_OK)
+                return Response(checked_data)
 
             # 有該帳號後 => 提取錯誤次數
             wrong_pwd_times = user.wrong_pwd_times
@@ -263,7 +267,7 @@ class LoginView(AuthUserInfo):
 
             error_setting(user, wrong_pwd_times)
 
-            return Response(hint, status=status.HTTP_200_OK)
+            return Response(hint)
 
 
 # 跳轉頁面測試
@@ -276,15 +280,16 @@ def index0(request):
     except Exception as e:
         return render(request, 'index.html', {})
 
-
-# Week2 新增功能 =>錯誤次數設定
 class ErrorSetting(APIView):
+    '''
+    登入失敗幾次會上鎖/禁止 的次數設定
+    '''
 
     def post(self, request):
 
         data = request.data
 
-        serializers = Errortime_setting_serializer(data=data)
+        serializers = ErrortimeSettingSerializer(data=data)
 
         if not serializers.is_valid(raise_exception=True):
 
@@ -306,8 +311,7 @@ class ErrorSetting(APIView):
             return Response(f"更改成功! {db_data.name} 的次數更改成 {db_data.value}", status=status.HTTP_200_OK)
 
         except:
-
-            # 如果輸入的變數名 是有支援的錯誤名稱 => 儲存改變
+            
             if serializers.validated_data['name'] in ErrortimeEnum.__members__:
 
                 serializers.save()
@@ -318,10 +322,11 @@ class ErrorSetting(APIView):
 
                 return Response("目前不支援該錯誤對應的服務", status.HTTP_200_OK)
 
-# 獲取目前該錯誤設定的次數
-
 
 def errortime_getter(name):
+    '''
+    獲取用戶當前錯誤次數
+    '''
 
     try:
         model = Errortimes.objects.get(name=name)
@@ -335,40 +340,28 @@ def errortime_getter(name):
 
             return None
 
-# 錯誤次數提示
+def errortime_hint(user_error_time):   
+    '''
+    依照用戶錯誤次數給予相對應回傳結果
+    '''
 
+    if user_error_time > errortime_getter('Auto_ban'):
+        result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.LOGIN_BAN.code, None)
 
-def errortime_hint(user_error_time):
-
-    if user_error_time > errortime_getter('Cannot_use'):
-
-        res = {"code": 110, "message": f"密碼錯誤超過上限，已無法使用",
-               "data": "", "can_login": False}
-
-    elif user_error_time > errortime_getter('Auto_ban'):
-
-        res = {"code": 111, "message": f"密碼錯誤超過一定次數，已禁止",
-               "data": "", "can_login": False}
-
-    elif user_error_time > errortime_getter('Auto_lock'):
-
-        res = {"code": 112, "message": f"密碼錯誤超過一定次數，已封鎖",
-               "data": "", "can_login": False}
+    elif user_error_time > errortime_getter('Auto_lock'):        
+        result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.LOGIN_LOCK.code, None)
 
     else:
+        result = CodeAndMessageEnum.get_dict(CodeAndMessageEnum.LOGIN_FAIL.code, None)
 
-        res = {"code": 112, "message": "密碼錯誤 請重新登入",
-               "data": "", "can_login": True}
-
-    return res
-
-# 對應錯誤次數的設定
-
+    return result
 
 def error_setting(user, error_times):
-    if error_times >= errortime_getter('Cannot_use'):
-        user.cannot_use = True
-    elif error_times >= errortime_getter('Auto_ban'):
+    '''
+    依照用戶錯誤次數 設定帳戶上鎖或禁止
+    '''
+    
+    if error_times >= errortime_getter('Auto_ban'):
         user.is_ban = True
     elif error_times >= errortime_getter('Auto_lock'):
         user.is_lock = True
@@ -383,46 +376,18 @@ class MemberSignUp(GenericAPIView):
     serializer_class = MemberSerailizer
 
     def post(self, request):
-        """ 會員輸入註冊資料
 
-        """
         data = request.data
         serializers = self.serializer_class(data=data)
 
         if not serializers.is_valid():
-            return Response("資料格式錯誤", status=status.HTTP_200_OK)
+            return Response(CodeAndMessageEnum.SIGN_UP_DATA_FORMAT_ERROR.message)
 
-        user = User.objects.create_user(username=serializers['username'],)
+        # TODO
+        # user = User.objects.create_user(username=serializers['username'],)
 
-        return Response("會員註冊成功!", status=status.HTTP_200_OK)
+        return Response(CodeAndMessageEnum.SIGN_UP_SUCCESS.message)
 
 
 def login_page(request):
-    return render(request, 'login.html', {})
-
-
-def user_data_auth_result(can_pass, data):
-    """
-    回傳用戶驗證後的結果字典
-    """
-    if can_pass:
-        
-        print("TEST-----------------------")
-        print(CodeMessageEnum.USER_AUTH_FAIL.__doc__)
-        print("TEST END-----------------------")
-
-        code_message = CodeMessageEnum.get_result(20)
-
-        result ={"code": code_message.get('code'),
-                 "message": code_message.get('message'),
-                 "data": data        
-                }
-    else :
-
-        result ={"code": CodeMessageEnum.USER_AUTH_FAIL.value.get('code'),
-                 "message": CodeMessageEnum.USER_AUTH_FAIL.value.get('message'),
-                 "data": data        
-                }
-    
-    return result
-        
+    return render(request, 'login.html')      
