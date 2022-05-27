@@ -1,7 +1,6 @@
-import random
-
 from io import StringIO
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import get_user_model
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from rest_framework.generics import GenericAPIView
@@ -25,12 +24,12 @@ class AuthUserInfo(APIView):
         data = request.data
         serializer = IDVerifySerailizer(data = data)
 
-        member, created = Member.objects.get_or_create(
-            id_num='A123456789',
-            defaults={
+        # member, created = Member.objects.get_or_create(
+        #     id_num='A123456789',
+        #     defaults={
 
-            }
-        )
+        #     }
+        # )
 
         # update_or_create
 
@@ -121,12 +120,8 @@ class ResetPasswordView(AuthUserInfo):
         else:
             member = data_pass_check.get('data')
 
-            pwd = Auth.
-
-            
-
-            for i in range(10):
-                pwd = pwd + random.choice('abcdefghijklmnopqrstuvwxyz')
+            User = get_user_model()
+            pwd = User.objects.make_random_password()
 
             member.set_password(pwd)
             member.save()

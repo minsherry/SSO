@@ -1,0 +1,13 @@
+5/26  coding review後的更改
+
+改進:
+
+1.  精簡 if... var=A else var=B   改成  var = A if ... else B 
+2.  
+3. 
+
+查詢:
+
+1.
+2.
+3.
