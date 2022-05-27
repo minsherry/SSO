@@ -1,7 +1,7 @@
 from enum import Enum,unique    
 
 @unique
-class CodeAndMessageEnum(bytes, Enum):
+class CodeNMsgEnum(bytes, Enum):
     '''
     用來記錄狀態代碼 和 回傳訊息
     '''
@@ -39,11 +39,11 @@ class CodeAndMessageEnum(bytes, Enum):
         
         return obj
     
-    def get_dict(code, data, *new_msg):        
-        if new_msg:
-            message = new_msg[0]
+    def get_dict(code, data, extra_msg = None):        
+        if extra_msg:
+            message = extra_msg
         else:
-            message = CodeAndMessageEnum(code).message
+            message = CodeNMsgEnum(code).message
 
         result = {
             "code": code,

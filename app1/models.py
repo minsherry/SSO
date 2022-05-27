@@ -23,6 +23,14 @@ class Member(AbstractUser):
 
     def __str__(self):
         return self.username
+    
+    @property
+    def is_lock_test(self):
+        return "LOCKED!!" if self.is_lock else 'You are fine.'
+    
+    def increase(self, times=1):
+        self.wrong_pwd_times += times
+        self.save()
 
 
 class Errortimes(models.Model):
