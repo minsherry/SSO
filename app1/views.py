@@ -1,5 +1,4 @@
 from io import StringIO
-from pyexpat import ErrorString
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import get_user_model
 from django.http import HttpResponseRedirect
@@ -282,7 +281,7 @@ def log_out(request):
 
 class ErrorSetting(APIView):
     '''
-    登入失敗幾次會上鎖/禁止 的次數設定, 這是提供給自己看的
+    登入失敗幾次會上鎖/禁止 的次數設定, 這是提供給管理者自己看的
     '''
 
     def put(self, request):
@@ -318,12 +317,9 @@ def get_errortime_set_now(error_name):
     '''    
     error_default_value = ErrorNameEnum[error_name].value
 
-    model = Errortimes.objects.get_or_create(name = error_name, value = error_default_value)    
+    obj = Errortimes.objects.get_or_create(name = error_name, defaults={"name": error_name, "value": error_default_value})[0]
 
-    print(type(model))
-    print(model)
-
-    return model[0].value   
+    return obj.value
 
 def error_set(user):
     '''

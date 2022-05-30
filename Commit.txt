@@ -6,6 +6,7 @@
 2.  更改 enum的用法(直接使用enum instance obj)
 3.  在參數使用 預設值 減少 在data為None時 的重複撰寫
 4.  直接使用Model.object.create_user()  而不是迂迴的先放入 再set_password()
+5.  使用get_or_create()
 
 查詢:
 
