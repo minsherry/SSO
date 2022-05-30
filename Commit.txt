@@ -3,11 +3,12 @@
 改進:
 
 1.  精簡 if... var=A else var=B   改成  var = A if ... else B 
-2.  
-3. 
+2.  更改 enum的用法(直接使用enum instance obj)
+3.  在參數使用 預設值 減少 在data為None時 的重複撰寫
+4.  直接使用Model.object.create_user()  而不是迂迴的先放入 再set_password()
 
 查詢:
 
-1.
-2.
+1. 了解 instance attribute 和 instance obj
+2. 了解 Decorator的用法 和 流程
 3.

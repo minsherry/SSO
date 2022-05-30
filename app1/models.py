@@ -27,7 +27,9 @@ class Member(AbstractUser):
     # @property
     # def is_lock_test(self):
     #     return "LOCKED!!" if self.is_lock else 'You are fine.'
-    
+        
+
+    @property
     def increase(self, times=1):
         self.wrong_pwd_times += times
         self.save()

@@ -18,17 +18,6 @@ class MemberSerailizer(serializers.ModelSerializer):
         model = Member
         fields = ('username', 'password', 'id_card', 'date_of_birth', 'mobile_number', 'first_name', 'last_name', 'email')
 
-    def create(self, validated_data):
-        '''
-        Override Create 讓新增時就把密碼加密
-        '''
-
-        user = super(MemberSerailizer, self).create(validated_data)
-        user.set_password(validated_data.get('password'))
-        user.save()
-        return user
-
-
 class IDVerifySerailizer(serializers.Serializer):
     '''
     身分驗證

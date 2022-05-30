@@ -1,7 +1,7 @@
 from enum import Enum,unique    
 
 @unique
-class CodeNMsgEnum(bytes, Enum):
+class CodeNMsgEnum(Enum):
     '''
     用來記錄狀態代碼 和 回傳訊息
     '''
@@ -32,21 +32,21 @@ class CodeNMsgEnum(bytes, Enum):
     CUSTOMIZE = (80, "自定義訊息")
         
     def __new__(cls, value, message):
-        obj = bytes.__new__(cls, [value])
-        obj._value_ = value
-        obj.code = value
-        obj.message = message
+        obj = object.__new__(cls)
+        obj._value_ = value   # 設定這個為該Enum實體物件的value
+        obj.code = value      # 新增實體屬性 code
+        obj.message = message # 新增實體屬性 message
         
         return obj
     
-    def get_dict(code, data, extra_msg = None):        
+    def get_dict(self, data = None , extra_msg = None):   
         if extra_msg:
             message = extra_msg
         else:
-            message = CodeNMsgEnum(code).message
+            message = self.message
 
         result = {
-            "code": code,
+            "code": self.code,
             "message": message,
             "data": data
         }

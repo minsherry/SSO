@@ -24,19 +24,11 @@ class AuthUserInfo(APIView):
         data = request.data
         serializer = IDVerifySerailizer(data = data)
 
-        # member, created = Member.objects.get_or_create(
-        #     id_num='A123456789',
-        #     defaults={
-
-        #     }
-        # )
-
-        # update_or_create
 
         if serializer.is_valid():
             result = CodeNMsgEnum.USER_AUTH_SUCCESS.get_dict(serializer.validated_data)
         else:
-            result = CodeNMsgEnum.USER_AUTH_FAIL.get_dict(None)
+            result = CodeNMsgEnum.USER_AUTH_FAIL.get_dict()
 
         return result
 
@@ -48,12 +40,12 @@ class AuthUserInfo(APIView):
         try:
             member = Member.objects.get(**column_name_and_value)
 
-            result = CodeNMsgEnum.get_dict(CodeNMsgEnum.USER_AUTH_SUCCESS.code, member)
+            result = CodeNMsgEnum.USER_AUTH_SUCCESS.get_dict(member)
 
             return result
 
         except Exception:
-            result = CodeNMsgEnum.get_dict(CodeNMsgEnum.USER_AUTH_FAIL.code, None)
+            result = CodeNMsgEnum.USER_AUTH_FAIL.get_dict()
 
             return result
 
@@ -64,6 +56,7 @@ class AuthUserInfo(APIView):
 
         tmp_str = StringIO()
 
+        #TODO change to for loop
         if request_data.get('id_card') != memeber_data.id_card:
             tmp_str.write("身分證 / ")
 
@@ -74,9 +67,9 @@ class AuthUserInfo(APIView):
             tmp_str.write("連絡電話 / ")
 
         if tmp_str.getvalue():
-            result = CodeNMsgEnum.get_dict(CodeNMsgEnum.USER_AUTH_FAIL.code, None, f"資料不符合的欄位: {tmp_str.getvalue()[:-1]}")
+            result = CodeNMsgEnum.USER_AUTH_FAIL.get_dict(None, f"資料不符合的欄位: {tmp_str.getvalue()[:-1]}")  # 去除掉最後的/
         else:
-            result = CodeNMsgEnum.get_dict(CodeNMsgEnum.USER_AUTH_SUCCESS.code, memeber_data)
+            result = CodeNMsgEnum.USER_AUTH_SUCCESS.get_dict(memeber_data)
 
         return result
 
@@ -114,21 +107,19 @@ class ResetPasswordView(AuthUserInfo):
 
         data_pass_check = self.check_process(request)  # 驗證程序
         
-        if data_pass_check.get('code') == CodeNMsgEnum.USER_AUTH_FAIL.code:  # 能否重製密碼
+        if data_pass_check.get('code') == CodeNMsgEnum.USER_AUTH_FAIL.code:  # 不能重置密碼
             return Response(data_pass_check)
 
-        else:
+        else:  # 可以重置密碼
             member = data_pass_check.get('data')
 
             User = get_user_model()
-            pwd = User.objects.make_random_password()
+            pwd = User.objects.make_random_password()  # 自動產生密碼
 
             member.set_password(pwd)
             member.save()
 
-            result = CodeNMsgEnum.get_dict(CodeNMsgEnum.USER_AUTH_SUCCESS.code, pwd, "重製密碼成功!")
-
-            print(result)
+            result = CodeNMsgEnum.USER_AUTH_SUCCESS.get_dict(pwd, "密碼重置成功!")            
 
             return Response(result)
 
@@ -147,7 +138,7 @@ class UnlockView(AuthUserInfo):
 
         # 能否解鎖
         if data_pass_check.get('code') == CodeNMsgEnum.USER_AUTH_FAIL.value.get('code'):
-            result = CodeNMsgEnum.get_dict(CodeNMsgEnum.USER_AUTH_FAIL.code, None)
+            result = CodeNMsgEnum.USER_AUTH_FAIL.get_dict()
 
             return Response(result)
         else:
@@ -155,11 +146,11 @@ class UnlockView(AuthUserInfo):
                 member.is_lock = False
                 member.save()
 
-                result = CodeNMsgEnum.get_dict(CodeNMsgEnum.USER_UNLOCK_SUCCESS.code, None)
+                result = CodeNMsgEnum.USER_UNLOCK_SUCCESS.get_dict()
 
                 return Response(result)
             else:
-                result = CodeNMsgEnum.get_dict(CodeNMsgEnum.USER_IS_NON_UNLOCK, None)
+                result = CodeNMsgEnum.USER_IS_NON_UNLOCK.get_dict()
 
                 return Response(result)
 
@@ -176,9 +167,9 @@ class ForgetUserNameView(AuthUserInfo):
         member = data_pass_check.get('data')
         
         if data_pass_check.get('code') == CodeNMsgEnum.USER_AUTH_FAIL:  # 是否能回傳帳號
-            result = CodeNMsgEnum.get_dict(CodeNMsgEnum.USER_AUTH_FAIL.code, None)
+            result = CodeNMsgEnum.USER_AUTH_FAIL.get_dict()
         else:
-            result = CodeNMsgEnum.get_dict(CodeNMsgEnum.RETURN_USER_ACCOUNT_NAME, member.username)
+            result = CodeNMsgEnum.RETURN_USER_ACCOUNT_NAME.get_dict(member.username)
 
         return Response(result)
 
@@ -194,11 +185,11 @@ class CheckStatusView(AuthUserInfo):
         member = data_pass_check.get('data')
         
         if data_pass_check.get('code') == CodeNMsgEnum.USER_AUTH_FAIL.code:  # 是否回傳開戶資訊
-            result = CodeNMsgEnum.get_dict(CodeNMsgEnum.USER_AUTH_FAIL.code, None)
+            result = CodeNMsgEnum.USER_AUTH_FAIL.get_dict()
 
             return Response(result)
         else:
-            result = CodeNMsgEnum.get_dict(CodeNMsgEnum.RETURN_USER_ACCOUNT_DATA.code, member.has_open_account)
+            result = CodeNMsgEnum.RETURN_USER_ACCOUNT_DATA.get_dict(member.has_open_account)
 
             return Response(result)
 
@@ -237,7 +228,7 @@ class LoginView(AuthUserInfo):
             user.wrong_pwd_times = 0
             user.save()
 
-            result = CodeNMsgEnum.get_dict(CodeNMsgEnum.LOGIN_SUCCESS, None)
+            result = CodeNMsgEnum.LOGIN_SUCCESS.get_dict()
             
             return HttpResponseRedirect('/app1/login1/')  # 跳轉網頁
 
@@ -319,7 +310,7 @@ def get_errortime_set_now(error_name):
     '''
     獲取當前錯誤次數設定
     '''
-    #TODO 改掉這個怪東西
+    #TODO 改掉
     try:
         model = Errortimes.objects.get(name = error_name)        
 
@@ -338,13 +329,13 @@ def errortime_hint(user_error_time):
 
     #TODO 換成迴圈寫法
     if user_error_time >= get_errortime_set_now(ErrorNameEnum.CANNOT_USE.name):
-        result = CodeNMsgEnum.get_dict(CodeNMsgEnum.LOGIN_CANNNOT_USE.code, None)
+        result = CodeNMsgEnum.LOGIN_CANNNOT_USE.get_dict()
     elif user_error_time >= get_errortime_set_now(ErrorNameEnum.AUTO_BAN.name):
-        result = CodeNMsgEnum.get_dict(CodeNMsgEnum.LOGIN_BAN.code, None)
+        result = CodeNMsgEnum.LOGIN_BAN.get_dict()
     elif user_error_time >= get_errortime_set_now(ErrorNameEnum.AUTO_LOCK.name):
-        result = CodeNMsgEnum.get_dict(CodeNMsgEnum.LOGIN_LOCK.code, None)
+        result = CodeNMsgEnum.LOGIN_LOCK.get_dict()
     else:
-        result = CodeNMsgEnum.get_dict(CodeNMsgEnum.LOGIN_FAIL.code, None)   
+        result = CodeNMsgEnum.LOGIN_FAIL.get_dict()   
 
     return result
 
@@ -377,10 +368,11 @@ class MemberSignUp(GenericAPIView):
     def post(self, request):
 
         data = request.data
-        serializers = self.serializer_class(data = data)
+        serializers = self.serializer_class(data = data)        
 
         if serializers.is_valid():
-            serializers.save()
+
+            Member.objects.create_user(**serializers.validated_data)                        
 
             return Response(CodeNMsgEnum.SIGN_UP_SUCCESS.get_dict())
         else:

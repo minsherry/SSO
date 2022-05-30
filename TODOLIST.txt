@@ -1,3 +1,15 @@
 1. 搞清楚 cookie && session
 2. @Property
-3. 
+3. 簡化 Enum 使用 物件.getDict() 而非呼叫兩次
+4. 在views 的 serializer_check
+
+        # member, created = Member.objects.get_or_create(
+        #     id_num='A123456789',
+        #     defaults={
+
+        #     }
+        # )
+
+        # update_or_create
+
+5. 修改 Response回傳字串
