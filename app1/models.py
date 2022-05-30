@@ -23,15 +23,25 @@ class Member(AbstractUser):
 
     def __str__(self):
         return self.username
-    
-    # @property
-    # def is_lock_test(self):
-    #     return "LOCKED!!" if self.is_lock else 'You are fine.'
-        
 
     @property
-    def increase(self, times=1):
+    def increase_errortime(self, times = 1):
         self.wrong_pwd_times += times
+        self.save()
+
+    @property
+    def is_ban_on(self):
+        self.is_ban = True
+        self.save()
+
+    @property
+    def is_active_off(self):
+        self.is_active = False
+        self.save()
+
+    @property
+    def is_lock_on(self):        
+        self.is_lock = True
         self.save()
 
 

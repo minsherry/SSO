@@ -1,4 +1,5 @@
 from io import StringIO
+from pyexpat import ErrorString
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import get_user_model
 from django.http import HttpResponseRedirect
@@ -67,7 +68,7 @@ class AuthUserInfo(APIView):
             tmp_str.write("連絡電話 / ")
 
         if tmp_str.getvalue():
-            result = CodeNMsgEnum.USER_AUTH_FAIL.get_dict(None, f"資料不符合的欄位: {tmp_str.getvalue()[:-1]}")  # 去除掉最後的/
+            result = CodeNMsgEnum.USER_AUTH_FAIL.get_dict(None, f"資料不符合的欄位: {tmp_str.getvalue()[:-1]}")  # 回傳所有不符合的欄位名稱 && 去除掉最後的/
         else:
             result = CodeNMsgEnum.USER_AUTH_SUCCESS.get_dict(memeber_data)
 
@@ -86,7 +87,7 @@ class AuthUserInfo(APIView):
 
         serializer_request = data_by_serializer.get('data') 
 
-        #  如果 request 的 username 去除空白後 是空字串 
+        #  判斷式:  如果 request 的 username 去除空白後 是空字串 
         data_by_key_column = self.member_obj_by_key_column(**{'username': serializer_request['username']}) if serializer_request.get('username').strip() else self.member_obj_by_key_column(**{'id_card': serializer_request['id_card']})
         
         if data_by_key_column.get('code') == CodeNMsgEnum.USER_AUTH_FAIL.code:  # 如果沒通過 關鍵欄位驗證 (程式斷點)
@@ -137,7 +138,7 @@ class UnlockView(AuthUserInfo):
         member = data_pass_check.get('data')
 
         # 能否解鎖
-        if data_pass_check.get('code') == CodeNMsgEnum.USER_AUTH_FAIL.value.get('code'):
+        if data_pass_check.get('code') == CodeNMsgEnum.USER_AUTH_FAIL.code:
             result = CodeNMsgEnum.USER_AUTH_FAIL.get_dict()
 
             return Response(result)
@@ -166,7 +167,7 @@ class ForgetUserNameView(AuthUserInfo):
 
         member = data_pass_check.get('data')
         
-        if data_pass_check.get('code') == CodeNMsgEnum.USER_AUTH_FAIL:  # 是否能回傳帳號
+        if data_pass_check.get('code') == CodeNMsgEnum.USER_AUTH_FAIL.code:  # 是否能回傳帳號
             result = CodeNMsgEnum.USER_AUTH_FAIL.get_dict()
         else:
             result = CodeNMsgEnum.RETURN_USER_ACCOUNT_NAME.get_dict(member.username)
@@ -189,7 +190,9 @@ class CheckStatusView(AuthUserInfo):
 
             return Response(result)
         else:
-            result = CodeNMsgEnum.RETURN_USER_ACCOUNT_DATA.get_dict(member.has_open_account)
+            data = "True" if member.has_open_account else "False" # 志強那邊他設定是用CharFirld接 我直接傳bool會錯
+
+            result = CodeNMsgEnum.RETURN_USER_ACCOUNT_DATA.get_dict(data)
 
             return Response(result)
 
@@ -208,15 +211,15 @@ class LoginView(AuthUserInfo):
         serializer = self.serializer_class(data = data)
 
         if not serializer.is_valid():
-            result = CodeNMsgEnum.get_dict(CodeNMsgEnum.LOGIN_DATA_FORMAT_ERROR, None)
-            return Response(result)
+            result = CodeNMsgEnum.LOGIN_DATA_FORMAT_ERROR.get_dict()
 
-        data = serializer.data
+            return Response(result)        
         
-        auth_user = authenticate(request, username = data.get('username'), password = data.get('password'))  # 驗證
+        # 驗證用戶帳密
+        auth_user = authenticate(request, username = serializer.validated_data.get('username'), password = serializer.validated_data.get('password'))  
         
         if auth_user is not None:  # 帳號密碼正確            
-            user = Member.objects.get(username = data.get('username'))  # 取DB資料拿當前錯誤次數
+            user = Member.objects.get(username = serializer.validated_data.get('username'))  # 取DB資料拿當前錯誤次數
 
             result = errortime_hint(user.wrong_pwd_times)
             
@@ -235,16 +238,16 @@ class LoginView(AuthUserInfo):
         else:  # 帳密沒通過驗證
             checked_data = self.member_obj_by_key_column(**{'username': data['username']})  # 確認是否有該帳號
 
-            if checked_data.get('code') == CodeNMsgEnum.USER_AUTH_SUCCESS.code:
-                user = checked_data.get('data')
-            else:
+            if checked_data.get('code') != CodeNMsgEnum.USER_AUTH_SUCCESS.code: # 沒有該帳號(程式斷點)
                 return Response(checked_data)
+
+            user = checked_data.get('data') # member obj在回傳字典中的data
 
             wrong_pwd_times = user.wrong_pwd_times  # 有該帳號後 => 提取錯誤次數
 
             hint = errortime_hint(wrong_pwd_times)            
 
-            error_setting(user)
+            error_set(user)
 
             return Response(hint)
 
@@ -255,7 +258,7 @@ def page_after_login(request):
     '''
 
     try:
-        user = Member.objects.get(username = request.user.username)
+        user = Member.objects.get(username = request.user.username) # 登入後的request中 就有user的資訊
 
         return render(request, 'index.html', {"user": user})
     except Exception:
@@ -279,7 +282,7 @@ def log_out(request):
 
 class ErrorSetting(APIView):
     '''
-    登入失敗幾次會上鎖/禁止 的次數設定
+    登入失敗幾次會上鎖/禁止 的次數設定, 這是提供給自己看的
     '''
 
     def put(self, request):
@@ -294,74 +297,70 @@ class ErrorSetting(APIView):
         try:
             db_data = Errortimes.objects.get(**serializers.validated_data)
 
-            return Response(f"更改成功! {db_data.name} 的次數更改成 {db_data.value}")
+            result = f"錯誤次數更新成功! {db_data.name} 的次數更改成 {db_data.value}"
+
+            return Response(result)
 
         except:
-            if serializers.validated_data.get('name') in ErrorNameEnum.__members__:
+            if serializers.validated_data.get('name') in ErrorNameEnum.__members__: # 我要先確定這個name 是不是我應該提供的服務 
                 serializers.save()
 
-                return Response(f"新增成功!  {serializers.validated_data['name']} : {serializers.validated_data['value']}")
-
+                result = f"錯誤新增成功!  {serializers.validated_data['name']} : {serializers.validated_data['value']}" 
             else:
-                return Response(CodeNMsgEnum.SERVICE_NOT_EXISTED.message)
+                result = CodeNMsgEnum.SERVICE_NOT_EXISTED.message                
+
+            return Response(result)
 
 
 def get_errortime_set_now(error_name):
     '''
     獲取當前錯誤次數設定
+    '''    
+    error_default_value = ErrorNameEnum[error_name].value
+
+    model = Errortimes.objects.get_or_create(name = error_name, value = error_default_value)    
+
+    print(type(model))
+    print(model)
+
+    return model[0].value   
+
+def error_set(user):
     '''
-    #TODO 改掉
-    try:
-        model = Errortimes.objects.get(name = error_name)        
+    依照用戶錯誤次數 設定帳戶上鎖或禁止    
+    ''' 
+    
+    if user.wrong_pwd_times >= get_errortime_set_now(ErrorNameEnum.CANNOT_USE.name):
+        user.is_active_off
+    elif user.wrong_pwd_times >= get_errortime_set_now(ErrorNameEnum.AUTO_BAN.name):
+        user.is_ban_on
+    elif user.wrong_pwd_times >= get_errortime_set_now(ErrorNameEnum.AUTO_LOCK.name):
+        user.is_lock_on
 
-        return model.value
-    except:
-        if error_name in ErrorNameEnum.__members__:
-            return ErrorNameEnum.DEFAULT.value
-        else:
-            return ErrorNameEnum.DEFAULT.value
+    user.increase_errortime # 登入錯誤次數 + 1
 
+    user.save()
 
 def errortime_hint(user_error_time):
     '''
     依照用戶錯誤次數給予相對應回傳結果
     '''
 
-    #TODO 換成迴圈寫法
-    if user_error_time >= get_errortime_set_now(ErrorNameEnum.CANNOT_USE.name):
-        result = CodeNMsgEnum.LOGIN_CANNNOT_USE.get_dict()
-    elif user_error_time >= get_errortime_set_now(ErrorNameEnum.AUTO_BAN.name):
-        result = CodeNMsgEnum.LOGIN_BAN.get_dict()
-    elif user_error_time >= get_errortime_set_now(ErrorNameEnum.AUTO_LOCK.name):
-        result = CodeNMsgEnum.LOGIN_LOCK.get_dict()
-    else:
-        result = CodeNMsgEnum.LOGIN_FAIL.get_dict()   
+    for set_time in ErrorNameEnum:
 
+        if user_error_time > set_time.value: # 如果錯誤次數 > 設定次數 
+            result = set_time.get_hint()
+            break
+
+        result = set_time.get_hint()  # 預設hint
+    
     return result
-
-def error_setting(user):
-    '''
-    依照用戶錯誤次數 設定帳戶上鎖或禁止    
-    '''
-
-    #TODO 換成迴圈寫法
-    if user.wrong_pwd_times >= get_errortime_set_now(ErrorNameEnum.CANNOT_USE.name):
-        user.is_active = False
-    elif user.wrong_pwd_times >= get_errortime_set_now(ErrorNameEnum.AUTO_BAN.name):
-        user.is_ban = True
-    elif user.wrong_pwd_times >= get_errortime_set_now(ErrorNameEnum.AUTO_LOCK.name):
-        user.is_lock = True
-
-    user.wrong_pwd_times = user.wrong_pwd_times + 1  # 登入錯誤次數 + 1
-
-    user.save()
 
 class MemberSignUp(GenericAPIView):
     '''
     會員註冊
     '''
     
-    #TODO Response不要寫死 && 只傳一個字串
     queryset = Member.objects.all()
     serializer_class = MemberSerailizer
 

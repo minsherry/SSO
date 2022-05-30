@@ -11,4 +11,4 @@
 
 1. 了解 instance attribute 和 instance obj
 2. 了解 Decorator的用法 和 流程
-3.
+3. @Property的用法 和 為什麼要用
